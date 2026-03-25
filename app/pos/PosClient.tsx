@@ -7,6 +7,8 @@ import { Separator } from '@/components/ui/separator'
 import { calcularRetencion } from '../lib/retencion'
 import { PDFDownloadLink } from '@react-pdf/renderer'
 import CotizacionPDF from '../lib/CotizacionesPDF'
+import { createClient } from '../lib/supabase'
+
 
 interface ItemCarrito {
   producto: Producto
@@ -16,6 +18,10 @@ interface ItemCarrito {
 export default function PosClient({ productos }: { productos: Producto[] }) {
   const [carrito, setCarrito] = useState<ItemCarrito[]>([])
   const [categoriaActiva, setCategoriaActiva] = useState<string>('todas')
+  const [clienteNombre, setClienteNombre] = useState('')
+  const [guardando, setGuardando] = useState(false)
+  const [cotizacionGuardada, setCotizacionGuardada] = useState(false)
+  
 
   function agregarAlCarrito(producto: Producto) {
     setCarrito(prev => {
@@ -67,6 +73,48 @@ export default function PosClient({ productos }: { productos: Producto[] }) {
     { id: 'hdd', label: 'Discos' },
     { id: 'accesorio', label: 'Accesorios' },
   ]
+  
+  async function guardarCotizacion() {
+    if (!clienteNombre.trim() || carrito.length === 0) return
+    setGuardando(true)
+
+    const supabase = createClient()
+    const numero = `COT-${new Date().getTime()}`
+
+    const { data: quote, error: quoteError } = await supabase
+      .from('quotes')
+      .insert({
+        numero,
+        cliente_nombre: clienteNombre,
+        subtotal,
+        itbis,
+        total,
+        dias_retencion: retencion?.diasRetencion ?? null,
+        estado: 'pendiente',
+      })
+      .select()
+      .single()
+
+    if (quoteError || !quote) {
+      console.error('Error guardando cotización:', quoteError)
+      setGuardando(false)
+      return
+    }
+
+    const items = carrito.map(item => ({
+      quote_id: quote.id,
+      product_id: item.producto.id,
+      nombre: item.producto.nombre,
+      precio: item.producto.precio,
+      cantidad: item.cantidad,
+      total: item.producto.precio * item.cantidad,
+    }))
+
+    await supabase.from('quote_items').insert(items)
+
+    setCotizacionGuardada(true)
+    setGuardando(false)
+  }
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -143,8 +191,15 @@ export default function PosClient({ productos }: { productos: Producto[] }) {
             </div>
           )}
         </div>
-        <div className="p-4 border-t">
-          <div className="space-y-1 text-sm mb-3">
+        <div className="p-4 border-t space-y-2">
+          <input
+            type="text"
+            placeholder="Nombre del cliente"
+            value={clienteNombre}
+            onChange={e => { setClienteNombre(e.target.value); setCotizacionGuardada(false) }}
+            className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-1 focus:ring-gray-400"
+          />
+          <div className="space-y-1 text-sm">
             <div className="flex justify-between text-gray-500">
               <span>Subtotal</span><span>RD${subtotal.toLocaleString('es-DO')}</span>
             </div>
@@ -155,30 +210,34 @@ export default function PosClient({ productos }: { productos: Producto[] }) {
               <span>Total</span><span>RD${total.toLocaleString('es-DO')}</span>
             </div>
           </div>
+          <button
+            onClick={guardarCotizacion}
+            disabled={carrito.length === 0 || !clienteNombre.trim() || guardando}
+            className="w-full py-2 border border-gray-300 rounded text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40 transition-colors"
+          >
+            {guardando ? 'Guardando...' : cotizacionGuardada ? '✓ Cotización guardada' : 'Guardar cotización'}
+          </button>
           {carrito.length > 0 ? (
             <PDFDownloadLink
               document={
                 <CotizacionPDF
                   items={carrito}
                   retencion={retencion}
-                  numeroCotizacion="2024-0001"
-                  clienteNombre="Cliente Demo"
+                  numeroCotizacion={cotizacionGuardada ? carrito[0]?.producto.id.slice(0,8) ?? 'DRAFT' : 'DRAFT'}
+                  clienteNombre={clienteNombre || 'Cliente'}
                   empresaNombre="Mi Tienda CCTV"
                   empresaRNC="1-30-12345-6"
                   empresaTel="809-555-1234"
                 />
               }
-              fileName="cotizacion.pdf"
+              fileName={`cotizacion-${clienteNombre || 'cliente'}.pdf`}
               className="block w-full py-2 bg-gray-900 text-white rounded text-sm font-medium text-center hover:bg-gray-700 transition-colors"
             >
               {({ loading }) => loading ? 'Generando PDF...' : 'Descargar cotización PDF'}
             </PDFDownloadLink>
           ) : (
-            <button
-              disabled
-              className="w-full py-2 bg-gray-900 text-white rounded text-sm font-medium opacity-40"
-            >
-              Generar cotización PDF
+            <button disabled className="w-full py-2 bg-gray-900 text-white rounded text-sm font-medium opacity-40">
+              Descargar cotización PDF
             </button>
           )}
         </div>
