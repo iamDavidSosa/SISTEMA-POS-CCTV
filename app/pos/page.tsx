@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from '../lib/supabase'
+import { createServerSupabaseClient } from '../lib/supabase-server'
 import PosClient from './PosClient'
 import type { Producto } from '../components/ProductCard'
 
