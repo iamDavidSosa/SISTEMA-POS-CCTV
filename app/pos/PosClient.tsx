@@ -4,6 +4,9 @@ import { useState } from 'react'
 import ProductCard, { type Producto } from '../components/ProductCard'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
+import { calcularRetencion } from '../lib/retencion'
+import { PDFDownloadLink } from '@react-pdf/renderer'
+import CotizacionPDF from '../lib/CotizacionesPDF'
 
 interface ItemCarrito {
   producto: Producto
@@ -44,17 +47,14 @@ export default function PosClient({ productos }: { productos: Producto[] }) {
   const itbis = Math.round(subtotal * 0.18)
   const total = subtotal + itbis
 
-  const totalBitrateMbps = carrito
-    .filter(item => item.producto.categoria === 'camara')
-    .reduce((acc, item) => acc + (item.producto.bitrateMbps ?? 0) * item.cantidad, 0)
-
-  const totalTB = carrito
-    .filter(item => item.producto.categoria === 'hdd')
-    .reduce((acc, item) => acc + (item.producto.capacidadTB ?? 0) * item.cantidad, 0)
-
-  const diasRetencion = totalBitrateMbps > 0 && totalTB > 0
-    ? Math.floor((totalTB * 1e12) / ((totalBitrateMbps * 1e6 / 8) * 86400))
-    : null
+  const retencion = calcularRetencion(
+    carrito.map(item => ({
+      categoria: item.producto.categoria,
+      bitrateMbps: item.producto.bitrateMbps,
+      capacidadTB: item.producto.capacidadTB,
+      cantidad: item.cantidad,
+    }))
+  )
 
   const productosFiltrados = categoriaActiva === 'todas'
     ? productos
@@ -127,18 +127,18 @@ export default function PosClient({ productos }: { productos: Producto[] }) {
               ))}
             </div>
           )}
-          {diasRetencion !== null && (
+          {retencion && (
             <div className="mt-4 p-3 rounded-lg border text-sm bg-gray-50">
               <div className="flex items-center justify-between mb-1">
                 <p className="font-medium text-gray-700">Retención estimada</p>
-                <Badge variant={diasRetencion >= 30 ? 'default' : 'destructive'}>
-                  {diasRetencion >= 30 ? 'Suficiente' : 'Insuficiente'}
+                <Badge variant={retencion.suficiente ? 'default' : 'destructive'}>
+                  {retencion.suficiente ? 'Suficiente' : 'Insuficiente'}
                 </Badge>
               </div>
-              <p className="text-2xl font-bold text-gray-900">{diasRetencion} días</p>
+              <p className="text-2xl font-bold text-gray-900">{retencion.diasRetencion} días</p>
               <Separator className="my-2" />
               <p className="text-xs text-gray-500">
-                {totalBitrateMbps.toFixed(1)} Mbps · {totalTB} TB disponibles
+                {retencion.totalBitrateMbps} Mbps · {retencion.totalTB} TB · {retencion.porcentajeUsado}% usado
               </p>
             </div>
           )}
@@ -155,12 +155,32 @@ export default function PosClient({ productos }: { productos: Producto[] }) {
               <span>Total</span><span>RD${total.toLocaleString('es-DO')}</span>
             </div>
           </div>
-          <button
-            disabled={carrito.length === 0}
-            className="w-full py-2 bg-gray-900 text-white rounded text-sm font-medium disabled:opacity-40 hover:bg-gray-700 transition-colors"
-          >
-            Generar cotización PDF
-          </button>
+          {carrito.length > 0 ? (
+            <PDFDownloadLink
+              document={
+                <CotizacionPDF
+                  items={carrito}
+                  retencion={retencion}
+                  numeroCotizacion="2024-0001"
+                  clienteNombre="Cliente Demo"
+                  empresaNombre="Mi Tienda CCTV"
+                  empresaRNC="1-30-12345-6"
+                  empresaTel="809-555-1234"
+                />
+              }
+              fileName="cotizacion.pdf"
+              className="block w-full py-2 bg-gray-900 text-white rounded text-sm font-medium text-center hover:bg-gray-700 transition-colors"
+            >
+              {({ loading }) => loading ? 'Generando PDF...' : 'Descargar cotización PDF'}
+            </PDFDownloadLink>
+          ) : (
+            <button
+              disabled
+              className="w-full py-2 bg-gray-900 text-white rounded text-sm font-medium opacity-40"
+            >
+              Generar cotización PDF
+            </button>
+          )}
         </div>
       </div>
     </div>
