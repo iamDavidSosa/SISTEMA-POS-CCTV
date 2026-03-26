@@ -1,6 +1,6 @@
-import { createServerSupabaseClient } from '../lib/supabase-server'
+import { createServerSupabaseClient } from '@/app/lib/supabase-server'
 import PosClient from './PosClient'
-import type { Producto } from '../components/ProductCard'
+import type { Producto } from '@/app/components/ProductCard'
 
 export default async function PosPage() {
   const supabase = await createServerSupabaseClient()

@@ -1,13 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import ProductCard, { type Producto } from '../components/ProductCard'
+import ProductCard, { type Producto } from '@/app/components/ProductCard'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { calcularRetencion } from '../lib/retencion'
+import { calcularRetencion } from '@/app/lib/retencion'
 import { PDFDownloadLink } from '@react-pdf/renderer'
-import CotizacionPDF from '../lib/CotizacionesPDF'
-import { createClient } from '../lib/supabase'
+import CotizacionPDF from '@/app/lib/CotizacionesPDF'
+import { createClient } from '@/app/lib/supabase'
 
 
 interface ItemCarrito {
