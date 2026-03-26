@@ -7,6 +7,8 @@ interface Producto {
   bitrateMbps?: number
   capacidadTB?: number
   imagen: string
+  esKit?: boolean
+  kitId?: string
 }
 
 interface Props {
@@ -20,6 +22,7 @@ export default function ProductCard({ producto, onAgregar }: Props) {
     dvr: 'DVR / NVR',
     hdd: 'Disco duro',
     accesorio: 'Accesorio',
+    kit: 'Kit / Combo',
   }
 
   return (

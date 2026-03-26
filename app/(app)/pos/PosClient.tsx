@@ -8,6 +8,7 @@ import { calcularRetencion } from '@/app/lib/retencion'
 import { PDFDownloadLink } from '@react-pdf/renderer'
 import CotizacionPDF from '@/app/lib/CotizacionesPDF'
 import { createClient } from '@/app/lib/supabase'
+import ClienteSelector from './ClienteSelector'
 
 
 interface ItemCarrito {
@@ -19,6 +20,15 @@ export default function PosClient({ productos }: { productos: Producto[] }) {
   const [carrito, setCarrito] = useState<ItemCarrito[]>([])
   const [categoriaActiva, setCategoriaActiva] = useState<string>('todas')
   const [clienteNombre, setClienteNombre] = useState('')
+  interface Cliente {
+    id: string
+    nombre: string
+    rnc: string | null
+    telefono: string | null
+    email: string | null
+  }
+  const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null)
+  const [modoDocumento, setModoDocumento] = useState<'cotizacion' | 'factura'>('cotizacion')
   const [guardando, setGuardando] = useState(false)
   const [cotizacionGuardada, setCotizacionGuardada] = useState(false)
   
@@ -75,11 +85,11 @@ export default function PosClient({ productos }: { productos: Producto[] }) {
   ]
   
   async function guardarCotizacion() {
-    if (!clienteNombre.trim() || carrito.length === 0) return
+    if (!clienteSeleccionado || carrito.length === 0) return
     setGuardando(true)
 
     const supabase = createClient()
-    const numero = `COT-${new Date().getTime()}`
+    const numero = `COT-${crypto.randomUUID().slice(0, 8).toUpperCase()}`
 
     const { data: { user } } = await supabase.auth.getUser()
     const { data: profile } = await supabase
@@ -93,7 +103,7 @@ export default function PosClient({ productos }: { productos: Producto[] }) {
       .insert({
         numero,
         tenant_id: profile!.tenant_id,
-        cliente_nombre: clienteNombre,
+        cliente_nombre: clienteSeleccionado?.nombre ?? '',
         subtotal,
         itbis,
         total,
@@ -119,6 +129,52 @@ export default function PosClient({ productos }: { productos: Producto[] }) {
     }))
 
     await supabase.from('quote_items').insert(items)
+
+    setCotizacionGuardada(true)
+    setGuardando(false)
+  }
+
+  async function registrarFactura() {
+    if (!clienteSeleccionado || carrito.length === 0) return
+    setGuardando(true)
+
+    const supabase = createClient()
+    const numero = `FAC-${crypto.randomUUID().slice(0, 8).toUpperCase()}`
+
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data: profile } = await supabase
+      .from('profiles').select('tenant_id').eq('id', user!.id).single()
+
+    const { data: quote } = await supabase.from('quotes').insert({
+      numero,
+      tenant_id: profile!.tenant_id,
+      cliente_nombre: clienteSeleccionado.nombre,
+      subtotal,
+      itbis,
+      total,
+      dias_retencion: retencion?.diasRetencion ?? null,
+      estado: 'venta',
+    }).select().single()
+
+    if (!quote) { setGuardando(false); return }
+
+    await supabase.from('quote_items').insert(
+      carrito.map(item => ({
+        quote_id: quote.id,
+        product_id: item.producto.esKit ? null : item.producto.id,
+        kit_id: item.producto.esKit ? item.producto.id : null,
+        nombre: item.producto.nombre,
+        precio: item.producto.precio,
+        cantidad: item.cantidad,
+        total: item.producto.precio * item.cantidad,
+      }))
+    )
+
+    await supabase.from('sales').insert({
+      tenant_id: profile!.tenant_id,
+      quote_id: quote.id,
+      total,
+    })
 
     setCotizacionGuardada(true)
     setGuardando(false)
@@ -200,13 +256,34 @@ export default function PosClient({ productos }: { productos: Producto[] }) {
           )}
         </div>
         <div className="p-4 border-t space-y-2">
-          <input
-            type="text"
-            placeholder="Nombre del cliente"
-            value={clienteNombre}
-            onChange={e => { setClienteNombre(e.target.value); setCotizacionGuardada(false) }}
-            className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-1 focus:ring-gray-400"
+          <ClienteSelector
+            onSeleccionar={(c) => { setClienteSeleccionado(c); setCotizacionGuardada(false) }}
+            clienteSeleccionado={clienteSeleccionado}
           />
+
+          {/* Selector de tipo de documento */}
+          <div className="flex gap-1 p-1 bg-gray-100 rounded-lg">
+            <button
+              onClick={() => setModoDocumento('cotizacion')}
+              className={`flex-1 py-1.5 text-xs rounded transition-colors ${
+                modoDocumento === 'cotizacion'
+                  ? 'bg-white text-gray-900 font-medium shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Cotización
+            </button>
+            <button
+              onClick={() => setModoDocumento('factura')}
+              className={`flex-1 py-1.5 text-xs rounded transition-colors ${
+                modoDocumento === 'factura'
+                  ? 'bg-white text-gray-900 font-medium shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Factura
+            </button>
+          </div>
           <div className="space-y-1 text-sm">
             <div className="flex justify-between text-gray-500">
               <span>Subtotal</span><span>RD${subtotal.toLocaleString('es-DO')}</span>
@@ -218,13 +295,23 @@ export default function PosClient({ productos }: { productos: Producto[] }) {
               <span>Total</span><span>RD${total.toLocaleString('es-DO')}</span>
             </div>
           </div>
-          <button
-            onClick={guardarCotizacion}
-            disabled={carrito.length === 0 || !clienteNombre.trim() || guardando}
-            className="w-full py-2 border border-gray-300 rounded text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40 transition-colors"
-          >
-            {guardando ? 'Guardando...' : cotizacionGuardada ? '✓ Cotización guardada' : 'Guardar cotización'}
-          </button>
+          {modoDocumento === 'cotizacion' ? (
+            <button
+              onClick={guardarCotizacion}
+              disabled={carrito.length === 0 || !clienteSeleccionado || guardando}
+              className="w-full py-2 border border-gray-300 rounded text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40 transition-colors"
+            >
+              {guardando ? 'Guardando...' : cotizacionGuardada ? '✓ Cotización guardada' : 'Guardar cotización'}
+            </button>
+          ) : (
+            <button
+              onClick={registrarFactura}
+              disabled={carrito.length === 0 || !clienteSeleccionado || guardando || cotizacionGuardada}
+              className="w-full py-2 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-700 disabled:opacity-40 transition-colors"
+            >
+              {guardando ? 'Procesando...' : cotizacionGuardada ? '✓ Factura registrada' : 'Registrar factura'}
+            </button>
+          )}
           {carrito.length > 0 ? (
             <PDFDownloadLink
               document={
@@ -232,7 +319,7 @@ export default function PosClient({ productos }: { productos: Producto[] }) {
                   items={carrito}
                   retencion={retencion}
                   numeroCotizacion={cotizacionGuardada ? carrito[0]?.producto.id.slice(0,8) ?? 'DRAFT' : 'DRAFT'}
-                  clienteNombre={clienteNombre || 'Cliente'}
+                  clienteNombre={clienteSeleccionado?.nombre || 'Cliente'}
                   empresaNombre="Mi Tienda CCTV"
                   empresaRNC="1-30-12345-6"
                   empresaTel="809-555-1234"
