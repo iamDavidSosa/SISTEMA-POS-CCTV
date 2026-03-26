@@ -81,10 +81,18 @@ export default function PosClient({ productos }: { productos: Producto[] }) {
     const supabase = createClient()
     const numero = `COT-${new Date().getTime()}`
 
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('tenant_id')
+      .eq('id', user!.id)
+      .single()
+
     const { data: quote, error: quoteError } = await supabase
       .from('quotes')
       .insert({
         numero,
+        tenant_id: profile!.tenant_id,
         cliente_nombre: clienteNombre,
         subtotal,
         itbis,
@@ -96,7 +104,7 @@ export default function PosClient({ productos }: { productos: Producto[] }) {
       .single()
 
     if (quoteError || !quote) {
-      console.error('Error guardando cotización:', quoteError)
+      throw new Error(`Error guardando cotización: ${quoteError?.message}`)
       setGuardando(false)
       return
     }
