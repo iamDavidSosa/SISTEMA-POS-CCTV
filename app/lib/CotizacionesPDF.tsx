@@ -1,5 +1,5 @@
 import {
-  Document, Page, Text, View, StyleSheet, Font
+  Document, Page, Text, View, StyleSheet, Font, Image
 } from '@react-pdf/renderer'
 import type { Producto } from '../components/ProductCard'
 import type { ResultadoRetencion } from './retencion'
@@ -17,6 +17,7 @@ interface Props {
   empresaNombre: string
   empresaRNC: string
   empresaTel: string
+  empresaLogo?: string | null
 }
 
 const styles = StyleSheet.create({
@@ -26,6 +27,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Helvetica',
     color: '#1a1a1a',
   },
+  logo: { width: 48, height: 48, objectFit: 'contain' },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -114,7 +116,7 @@ function fmt(n: number) {
 }
 
 export default function CotizacionPDF({
-  items, retencion, numeroCotizacion, clienteNombre, empresaNombre, empresaRNC, empresaTel
+  items, retencion, numeroCotizacion, clienteNombre, empresaNombre, empresaRNC, empresaTel, empresaLogo
 }: Props) {
   const subtotal = items.reduce((acc, i) => acc + i.producto.precio * i.cantidad, 0)
   const itbis = Math.round(subtotal * 0.18)
@@ -127,9 +129,14 @@ export default function CotizacionPDF({
 
         {/* Header */}
         <View style={styles.header}>
-          <View>
-            <Text style={styles.empresa}>{empresaNombre}</Text>
-            <Text style={styles.empresaSub}>RNC: {empresaRNC} · Tel: {empresaTel}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            {empresaLogo && (
+              <Image src={empresaLogo} style={styles.logo} />
+            )}
+            <View>
+              <Text style={styles.empresa}>{empresaNombre}</Text>
+              <Text style={styles.empresaSub}>RNC: {empresaRNC} · Tel: {empresaTel}</Text>
+            </View>
           </View>
           <View>
             <Text style={styles.quoteNum}>COTIZACIÓN #{numeroCotizacion}</Text>

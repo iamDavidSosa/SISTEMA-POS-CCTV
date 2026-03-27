@@ -16,7 +16,15 @@ interface ItemCarrito {
   cantidad: number
 }
 
-export default function PosClient({ productos }: { productos: Producto[] }) {
+interface Tenant {
+  nombre: string
+  ruc: string | null
+  telefono: string | null
+  email: string | null
+  logo_url: string | null
+}
+
+export default function PosClient({ productos, tenant }: { productos: Producto[], tenant: Tenant }) {
   const [carrito, setCarrito] = useState<ItemCarrito[]>([])
   const [categoriaActiva, setCategoriaActiva] = useState<string>('todas')
   const [clienteNombre, setClienteNombre] = useState('')
@@ -320,9 +328,10 @@ export default function PosClient({ productos }: { productos: Producto[] }) {
                   retencion={retencion}
                   numeroCotizacion={cotizacionGuardada ? carrito[0]?.producto.id.slice(0,8) ?? 'DRAFT' : 'DRAFT'}
                   clienteNombre={clienteSeleccionado?.nombre || 'Cliente'}
-                  empresaNombre="Mi Tienda CCTV"
-                  empresaRNC="1-30-12345-6"
-                  empresaTel="809-555-1234"
+                  empresaNombre={tenant.nombre}
+                  empresaRNC={tenant.ruc ?? ''}
+                  empresaTel={tenant.telefono ?? ''}
+                  empresaLogo={tenant.logo_url}
                 />
               }
               fileName={`cotizacion-${clienteNombre || 'cliente'}.pdf`}

@@ -20,7 +20,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const { data: tenant } = await supabase
     .from('tenants')
-    .select('nombre')
+    .select('nombre, logo_url')
     .single()
 
   return (
@@ -31,10 +31,20 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
         {/* Logo / Nombre de tienda */}
         <div className="p-4 border-b">
-          <p className="font-semibold text-gray-900 text-sm truncate">
-            {tenant?.nombre ?? 'CCTV POS'}
-          </p>
-          <p className="text-xs text-gray-400 mt-0.5 truncate">{user.email}</p>
+          <div className="flex items-center gap-2 mb-1">
+            {tenant?.logo_url ? (
+              <img src={tenant.logo_url} alt="logo"
+                className="w-7 h-7 object-contain rounded" />
+            ) : (
+              <div className="w-7 h-7 rounded bg-gray-100 flex items-center justify-center text-gray-400 text-xs">
+                ◈
+              </div>
+            )}
+            <p className="font-semibold text-gray-900 text-sm truncate">
+              {tenant?.nombre ?? 'CCTV POS'}
+            </p>
+          </div>
+          <p className="text-xs text-gray-400 truncate">{user.email}</p>
         </div>
 
         {/* Navegación */}
